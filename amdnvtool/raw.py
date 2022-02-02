@@ -1,6 +1,7 @@
-import sys
+#import sys
 from abc import ABC, abstractmethod
-from typing import Generator
+from typing import Generator, List
+from . import crypto, parsed
 
 
 class RawBuffer(ABC):
@@ -128,8 +129,8 @@ class EntryHeader(NamedBytes):
         self.body_size = NamedLittleInt("body_size", buf[8:10])
 
         self.has_checksum = NamedLittleInt("has_checksum", buf[10:12])
-        self.unknown_2 = NamedLittleInt("unknown_2", buf[12:16])
-        self.unknown_3 = NamedLittleInt("unknown_3", buf[16:20])
+        self.context = NamedLittleInt("context", buf[12:16])
+        self.sequence_nr = NamedLittleInt("sequence_nr", buf[16:20])
 
         self.magic = NamedStr("magic", buf[20:24])
 
@@ -141,8 +142,6 @@ class EntryHeader(NamedBytes):
         assert self.reserved_2.bytes == b'\0'*8
 
         assert self.unknown_1.value == 2
-        #assert self.unknown_2.value == 4
-        #assert self.unknown_3.value == 1
 
         assert self.total_size.value - self.body_size.value == 0x20
         assert self.total_size.value & 0xf == 0
@@ -154,54 +153,10 @@ class EntryHeader(NamedBytes):
         yield self.total_size
         yield self.body_size
         yield self.has_checksum
-        yield self.unknown_2
-        yield self.unknown_3
+        yield self.context
+        yield self.sequence_nr
         yield self.magic
 
-class EntryBody(NamedBytes):
-    '''
-    An NVData entry body
-    '''
-
-    def __init__(self, buf: bytes):
-        super().__init__('body', buf)
-
-        assert len(buf) >= 0x30, "The entry body needs to be at least 0x30 bytes long"
-        self._buffer = buf
-
-        self.iv = NamedBytes("iv", buf[:0x10])
-
-        self.total_size = NamedLittleInt("total_size", buf[0x10:0x14])
-        assert self.total_size.value == len(buf) + 0x20, "The total size should be the body size plus 0x20 (the header size)"
-
-        self.field_sizes = list()
-        self.field_buffers = list()
-        field_num = 0
-        total_field_size = 0
-        while field_num < 7:
-            field_size_buf = buf[0x14+4*field_num:0x18+4*field_num]
-            field_size = NamedLittleInt(f'field_{field_num}_size', field_size_buf)
-            if field_size.value != 0:
-
-                total_field_size += field_size.value
-                assert total_field_size + 0x30 + 0x20 <= self.total_size.value, "The parsed field sizes don't match up!"
-                self.field_sizes.append(field_size)
-                field_buffer = buf[0x30+total_field_size:0x30+total_field_size+field_size.value]
-                field_buffer = NamedBytes(f'field_{field_num}', field_buffer)
-                self.field_buffers.append(field_buffer)
-
-            else:
-                break
-        
-        assert total_field_size + 0x30 + 0x20 == self.total_size, "The parsed field sizes don't match up!"
-
-    def fields(self) -> Generator:
-        yield self.iv
-        yield self.total_size
-        for fs in self.field_sizes:
-            yield fs
-        for fb in self.field_buffers:
-            yield fb
 
 class EntryFieldDefs(NamedBytes):
     '''
@@ -247,6 +202,47 @@ class EntryFieldDefs(NamedBytes):
             yield field_size
 
 
+class EntryBody(NamedBytes):
+    '''
+    An NVData entry's body
+    '''
+
+    def __init__(self, buf: bytes):
+
+        super().__init__('entry_body', buf)
+
+        assert len(self) >= 0x30, \
+            "There needs to be enough space for the iv and the field definitions!"
+
+        self.iv = NamedBytes('iv', self.bytes[:0x10])
+
+        self.field_defs = EntryFieldDefs(self.bytes[0x10:0x30])
+        assert len(self) + 0x20 == self.field_defs.total_size.value
+
+        self.body_fields = list()
+        next_field_start = 0x30
+        for (field_num, field_size) in enumerate(self.field_defs.field_sizes):
+            field_buffer = self.bytes[next_field_start:next_field_start + field_size.value]
+            self.body_fields.append(NamedBytes(f'field_{field_num}', field_buffer))
+
+            next_field_start += field_size.value
+            assert next_field_start <= len(self)
+
+    def fields(self) -> Generator:
+        yield self.iv
+        yield self.field_defs
+        for body_field in self.body_fields:
+            yield body_field
+
+    def raw_fields(self, _key):
+        return [field.bytes for field in self.body_fields]
+
+    def decrypt_fields(self, key):
+        return [
+            crypto.aes_ctr_dec(key, self.iv.bytes, field.bytes)
+            for field in self.body_fields
+        ]
+
 class Entry(NamedBytes):
     '''
     An NVData entry
@@ -258,31 +254,27 @@ class Entry(NamedBytes):
 
         super().__init__('entry', buf[:self.header.total_size.value])
 
-        assert len(self) >= 0x70, \
-            "There needs to be enough space for header, hmac, iv, and field definitions!"
+        assert len(self) >= 0x40, \
+            "There needs to be enough space for header and hmac!"
 
         self.hmac = NamedBytes('hmac', self.bytes[0x20:0x40])
-        self.iv = NamedBytes('iv', self.bytes[0x40:0x50])
-
-        self.field_defs = EntryFieldDefs(self.bytes[0x50:0x70])
-        assert self.header.body_size.value == self.field_defs.total_size.value
-
-        self.body_fields = list()
-        next_field_start = 0x70
-        for (field_num, field_size) in enumerate(self.field_defs.field_sizes):
-            field_buffer = self.bytes[next_field_start:next_field_start + field_size.value]
-            self.body_fields.append(NamedBytes(f'field_{field_num}', field_buffer))
-
-            next_field_start += field_size.value
-            assert next_field_start <= len(self)
+        self.body = EntryBody(self.bytes[0x40:])
 
     def fields(self) -> Generator:
         yield self.header
         yield self.hmac
-        yield self.iv
-        yield self.field_defs
-        for body_field in self.body_fields:
-            yield body_field
+        yield self.body
+
+    def verify_hmac(self, key) -> bool:
+        return crypto.hmac_sha256(key, self.body.bytes) == self.hmac.bytes
+
+    def to_parsed(self, key) -> parsed.Entry:
+        return parsed.Entry.build(
+            self.header.context.value,
+            self.header.sequence_nr.value,
+            #self.body.raw_fields(key),
+            self.body.decrypt_fields(key),
+        )
 
 
 class NVEntrySequence(NamedBytes):
@@ -299,13 +291,13 @@ class NVEntrySequence(NamedBytes):
 
         while True:
 
-            sys.stdout.write(f'\rparsing entry at 0x{next_entry_start:x}')
-            sys.stdout.flush()
+            #sys.stdout.write(f'\rparsing entry at 0x{next_entry_start:x}')
+            #sys.stdout.flush()
 
             try:
                 entry = Entry(buf[next_entry_start:])
             except:
-                sys.stdout.write('\n')
+                #sys.stdout.write('\n')
                 raise
             next_entry_start += len(entry)
             self.entries.append(entry)
@@ -313,7 +305,7 @@ class NVEntrySequence(NamedBytes):
             if entry.header.has_checksum.value:
                 break
 
-        sys.stdout.write('\r                                        \r')
+        #sys.stdout.write('\r                                        \r')
 
         self.hmac = NamedBytes('hmac', buf[next_entry_start:next_entry_start+0x20])
 
@@ -324,6 +316,11 @@ class NVEntrySequence(NamedBytes):
             yield entry
         yield self.hmac
 
+    def verify_all_hmacs(self, key) -> bool:
+        return all(e.verify_hmac(key) for e in self.entries)
+
+    def to_parsed(self, key) -> List[parsed.Entry]:
+        return [entry.to_parsed(key) for entry in self.entries]
 
 
 class NVData(NamedBytes):
@@ -348,10 +345,24 @@ class NVData(NamedBytes):
         self.free_space_start = next_entry_seq_start
         self.free_space = NamedBytes('free_space', buf[next_entry_seq_start:])
 
-        assert self.free_space.bytes == b'\xff' * len(self.free_space)
+        #assert self.free_space.bytes == b'\xff' * len(self.free_space)
 
     def fields(self) -> Generator:
         yield self.header
         for entry_seq in self.entry_seqs:
             yield entry_seq
+
+    def verify_all_hmacs(self, key) -> bool:
+        buffer_len = len(self.header)
+        for entry_seq in self.entry_seqs:
+            buffer_len += len(entry_seq)
+            checksum = crypto.hmac_sha256(key, self.bytes[:buffer_len-0x20])
+            if checksum != entry_seq.hmac.bytes:
+                return False
+
+        return all(s.verify_all_hmacs(key) for s in self.entry_seqs)
+
+    def to_parsed(self, key) -> List[List[parsed.Entry]]:
+        return [seq.to_parsed(key) for seq in self.entry_seqs]
+
 
