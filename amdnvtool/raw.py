@@ -102,7 +102,7 @@ class Header(NamedBytes):
         self.reserved = NamedBytes("reserved", buf[8:])
 
         assert self.magic.value == 'NVx3'
-        assert self.version.value == 1
+        #assert self.version.value == 1
         assert self.reserved.bytes == b'\xff' * 0x38
 
     def fields(self) -> Generator:
@@ -334,18 +334,19 @@ class NVData(NamedBytes):
         self.header = Header(buf[:0x40])
         self.entry_seqs = list()
         next_entry_seq_start = 0x40
-        while buf[next_entry_seq_start: next_entry_seq_start+0x20] != b'\xff'*0x20:
+        while buf[next_entry_seq_start:next_entry_seq_start+0x10] != b'\xff'*0x10:
             entry_seq = NVEntrySequence(buf[next_entry_seq_start:])
 
             next_entry_seq_start += len(entry_seq)
             self.entry_seqs.append(entry_seq)
 
-        free_bytes_len = buf[next_entry_seq_start:].count(b'\xff')
-        self.free_space = NamedBytes('free_space', buf[next_entry_seq_start:next_entry_seq_start + free_bytes_len])
+        free_bytes_end = next_entry_seq_start
+        while free_bytes_end < len(buf) and buf[free_bytes_end] == 255:
+            free_bytes_end += 1
+        self.free_space = NamedBytes('free_space', buf[next_entry_seq_start:free_bytes_end])
         assert self.free_space.bytes == b'\xff' * len(self.free_space)
-        next_entry_seq_start += free_bytes_len
 
-        super().__init__('nv_data', buf[:next_entry_seq_start])
+        super().__init__('nv_data', buf[:free_bytes_end])
 
     def fields(self) -> Generator:
         yield self.header
