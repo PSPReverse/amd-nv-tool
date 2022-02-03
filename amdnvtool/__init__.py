@@ -1,3 +1,4 @@
+import sys
 from . import raw, crypto, parsed
 
 class NVData:
@@ -12,6 +13,10 @@ class NVData:
     def from_file(filename: str):
         with open(filename, 'rb') as f:
             return NVData(raw.NVData(f.read()))
+
+    @staticmethod
+    def from_stdin():
+        return NVData(raw.NVData(sys.stdin.buffer.read()))
 
     @property
     def keys(self):
@@ -48,8 +53,10 @@ class NVData:
                 print(f'  {content}')
 
 def main():
-    import sys
-    nv_data = NVData.from_file(sys.argv[1])
+    try:
+        nv_data = NVData.from_file(sys.argv[1])
+    except IndexError:
+        nv_data = NVData.from_stdin()
     #nv_data.print_parsed()
     nv_data.print_by_context()
 
