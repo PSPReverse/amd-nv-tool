@@ -329,9 +329,7 @@ class NVData(NamedBytes):
     '''
 
     def __init__(self, buf: bytes):
-        super().__init__('nv_data', buf)
-
-        assert len(self) >= 0x60, 'There needs to be enough space for header and checksum!'
+        assert len(buf) >= 0x60, 'There needs to be enough space for header and checksum!'
 
         self.header = Header(buf[:0x40])
         self.entry_seqs = list()
@@ -342,10 +340,12 @@ class NVData(NamedBytes):
             next_entry_seq_start += len(entry_seq)
             self.entry_seqs.append(entry_seq)
 
-        self.free_space_start = next_entry_seq_start
-        self.free_space = NamedBytes('free_space', buf[next_entry_seq_start:])
+        free_bytes_len = buf[next_entry_seq_start:].count(b'\xff')
+        self.free_space = NamedBytes('free_space', buf[next_entry_seq_start:next_entry_seq_start + free_bytes_len])
+        assert self.free_space.bytes == b'\xff' * len(self.free_space)
+        next_entry_seq_start += free_bytes_len
 
-        #assert self.free_space.bytes == b'\xff' * len(self.free_space)
+        super().__init__('nv_data', buf[:next_entry_seq_start])
 
     def fields(self) -> Generator:
         yield self.header
@@ -364,5 +364,33 @@ class NVData(NamedBytes):
 
     def to_parsed(self, key) -> List[List[parsed.Entry]]:
         return [seq.to_parsed(key) for seq in self.entry_seqs]
+
+
+class NVRom(NamedBytes):
+    '''
+    NVRom
+    '''
+
+    def __init__(self, buf: bytes):
+
+        super().__init__('nv_rom', buf)
+
+        self.nvdatas = list()
+        next_nvdata = 0
+        while next_nvdata < len(buf):
+            nvdata = NVData(buf[next_nvdata:])
+
+            next_nvdata += len(nvdata)
+            self.nvdatas.append(nvdata)
+
+    def fields(self) -> Generator:
+        for nvdata in self.nvdatas:
+            yield nvdata
+
+    def verify_all_hmacs(self, key) -> bool:
+        return all(d.verify_all_hmacs(key) for d in self.nvdatas)
+
+    def to_parsed(self, key) -> List[List[List[parsed.Entry]]]:
+        return [nvdata.to_parsed(key) for nvdata in self.nvdatas]
 
 

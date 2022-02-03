@@ -12,11 +12,11 @@ class NVData:
     @staticmethod
     def from_file(filename: str):
         with open(filename, 'rb') as f:
-            return NVData(raw.NVData(f.read()))
+            return NVData(raw.NVRom(f.read()))
 
     @staticmethod
     def from_stdin():
-        return NVData(raw.NVData(sys.stdin.buffer.read()))
+        return NVData(raw.NVRom(sys.stdin.buffer.read()))
 
     @property
     def keys(self):
@@ -41,10 +41,12 @@ class NVData:
         return self.raw.verify_all_hmays(self.keys.hmac_key)
 
     def print_parsed(self):
-        for (seq_num, entries) in enumerate(self.parsed):
-            print(f'Sequence {seq_num}:')
-            for (entry_num, entry) in enumerate(entries):
-                print(f'  Entry {entry_num}:\n    ' + entry.try_interpret().replace('\n', '\n    '))
+        for (nvdata_num, nvdata) in enumerate(self.parsed):
+            print(f'NVData {nvdata_num}:')
+            for (seq_num, entries) in enumerate(nvdata):
+                print(f'  Sequence {seq_num}:')
+                for (entry_num, entry) in enumerate(entries):
+                    print(f'    Entry {entry_num}:\n      ' + entry.try_interpret().replace('\n', '\n      '))
 
     def print_by_context(self):
         for (context_id, sequence) in self.by_context.items():

@@ -44,20 +44,21 @@ class Entry:
             res += field.try_interpret().replace('\n','\n  ')
         return res
 
-def map_by_context_id(entries : List[List[Entry]]) -> Dict[int, List[HexBytes]]:
+def map_by_context_id(entries : List[List[List[Entry]]]) -> Dict[int, List[HexBytes]]:
     result = dict()
-    for es in entries:
-        for e in es:
-            sequence = list()
-            if result.get(e.context_id):
-                sequence = result[e.context_id]
+    for nd in entries:
+        for es in nd:
+            for e in es:
+                sequence = list()
+                if result.get(e.context_id):
+                    sequence = result[e.context_id]
 
-            assert len(sequence) + 1 == e.sequence_nr
-            #for _ in range(len(sequence), e.sequence_nr):
-                #sequence.append(None)
-            sequence.append(e.fields)
+                assert len(sequence) + 1 == e.sequence_nr
+                #for _ in range(len(sequence), e.sequence_nr):
+                    #sequence.append(None)
+                sequence.append(e.fields)
             
-            result[e.context_id] = sequence
+                result[e.context_id] = sequence
     return result
 
 
