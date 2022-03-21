@@ -1,6 +1,6 @@
 import sys
 
-from . import NVData
+from .nv_data import NVData
 
 
 def main():
