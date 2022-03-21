@@ -1,39 +1,53 @@
 from cryptography.hazmat.primitives import hashes, hmac, ciphers
+from psptool import PSPTool
+
 import binascii as ba
 
+
+def sole(set_of_one: set, assert_msg="Set does not contain exactly one element"):
+    assert len(set_of_one) == 1, assert_msg
+    return list(set_of_one)[0]
+
+
 def byteswap(buffer: bytes) -> bytes:
-    return  buffer[::-1]
+    return buffer[::-1]
+
 
 def hmac_sha256(key: bytes, msg: bytes) -> bytes:
     ctx = hmac.HMAC(key, hashes.SHA256())
     ctx.update(msg)
     return ctx.finalize()
 
+
 def sha256(msg: bytes) -> bytes:
     ctx = hashes.Hash(hashes.SHA256())
     ctx.update(msg)
     return ctx.finalize()
 
+
 def aes_ctr(key: bytes, iv: bytes):
     return ciphers.Cipher(ciphers.algorithms.AES(key), ciphers.modes.CTR(iv))
+
 
 def aes_ctr_dec(key: bytes, iv: bytes, txt: bytes) -> bytes:
     ctx = aes_ctr(key, iv).decryptor()
     return ctx.update(txt) + ctx.finalize()
 
+
 def aes_ctr_enc(key: bytes, iv: bytes, txt: bytes) -> bytes:
     ctx = aes_ctr(key, iv).encryptor()
     return ctx.update(txt) + ctx.finalize()
 
-def kdf(key: bytes, label: str, output_len: int = 32) -> bytes:
-    
-    output = b''
-    suffix = label.encode('ascii') + b'\0'*5 + (output_len*8).to_bytes(4, 'little')
 
-    for i in range(1, 1 + ((output_len+31) >> 5)):
+def kdf(key: bytes, label: str, output_len: int = 32) -> bytes:
+    output = b''
+    suffix = label.encode('ascii') + b'\0' * 5 + (output_len * 8).to_bytes(4, 'little')
+
+    for i in range(1, 1 + ((output_len + 31) >> 5)):
         output += hmac_sha256(key, i.to_bytes(4, 'big') + suffix)
 
     return output[:output_len]
+
 
 class SecretKeys:
     def __init__(self, secret: bytes):
@@ -42,8 +56,57 @@ class SecretKeys:
         self.wrapping_hmac_key = kdf(secret, 'HMAC Key for wrapping data')
         self.signature_hmac_key = kdf(secret, 'HMAC Signature Key for PSP Data saved in DRAM')
 
+
+def unseal_secret(sealed_secret, lsb_zero_key):
+    # todo: implement
+    return ba.a2b_hex('89c209ab1571b23c84b9fef0a1416fbc9482b014cc5fe242a797b72df028556f')
+
+
 class NvDataKeys(SecretKeys):
-    def __init__(self, secret, ftpm_key_modulus, ftpm_app_id):
+    @staticmethod
+    def from_file(filename: str, lsb_zero_key: bytes):
+        pt = PSPTool.from_file(filename)
+
+        # For all portions of the NvDataKeys let's fetch all possible inputs and assert they are the same using sole()
+        driver_entries = pt.blob.get_entries_by_type(0x28)
+        psp_boot_time_trustlets = pt.blob.get_entries_by_type(0xc)
+
+        # 1. sealed_secret:
+        sealed_secrets = set()
+        for de in driver_entries:
+            # We suspect the sealed_secret right before this string
+            sealed_secret_size = 0x20
+            offset = de.get_bytes().find(b"HMAC Signature Key for PSP Data saved in DRAM") - sealed_secret_size
+            sealed_secrets.add(
+                de.get_bytes(offset, sealed_secret_size)
+            )
+        sealed_secret: bytes = sole(sealed_secrets)
+        secret = unseal_secret(sealed_secret, lsb_zero_key)
+
+        # 2. ftpm_key_modulus
+        ftpm_key_moduli = set()
+        for pbtt in psp_boot_time_trustlets:
+            assert len(pbtt.signed_entity.certifying_keys) == 1
+            ck = list(pbtt.signed_entity.certifying_keys)[0]
+            pk = ck.get_public_key()
+            ftpm_key_moduli.add(
+                pk.get_crypto_material(pk.signature_size)
+            )
+        ftpm_key_modulus: bytes = sole(ftpm_key_moduli)
+
+        # 3. ftpm_app_id
+        ftpm_app_ids = set()
+        for pbtt in psp_boot_time_trustlets:
+            magic = b"gpd.ta.appID"
+            offset = pbtt.get_bytes().find(magic) + len(magic) + 1
+            ftpm_app_ids.add(
+                pbtt.get_bytes(offset, 0x10)
+            )
+        ftpm_app_id: bytes = sole(ftpm_app_ids)
+
+        return NvDataKeys(secret, ftpm_key_modulus, ftpm_app_id)
+
+    def __init__(self, secret: bytes, ftpm_key_modulus: bytes, ftpm_app_id: bytes):
         super().__init__(secret)
         self.ftpm_key_modulus = ftpm_key_modulus
         self.ftpm_key_mod_hash = sha256(ftpm_key_modulus)
@@ -55,12 +118,11 @@ class NvDataKeys(SecretKeys):
         self.aes_key = hmac_sha256(self.aes_i_key, self.ftpm_app_id)[:16]
         self.hmac_key = hmac_sha256(self.hmac_i_key, self.ftpm_app_id)
 
+
 def get_keys():
-
     # inputs
-    #secret = ba.a2b_hex('982f8a4291443771cffbc0b5a5dbb5e95bc25639f111f159a4823f92d55e1cab')
+    # secret = ba.a2b_hex('982f8a4291443771cffbc0b5a5dbb5e95bc25639f111f159a4823f92d55e1cab')
     secret = ba.a2b_hex('89c209ab1571b23c84b9fef0a1416fbc9482b014cc5fe242a797b72df028556f')
-
 
     ftpm_app_id = ba.a2b_hex('00b5a2ab4538ca45bb56f2e5ae71c585')
 
@@ -85,14 +147,15 @@ def get_keys():
 
     return NvDataKeys(secret, ccd7_key_modulus, ftpm_app_id)
 
-if __name__ == "__main__":
 
+if __name__ == "__main__":
     # controls
     wrapping_aes_key_correct = byteswap(ba.a2b_hex('def5ce4e3896777e19e6f09552253bf587bcef53540eb846bc91b69db930c3f7'))
 
     wrapping_hmac_key_correct = byteswap(ba.a2b_hex('c8dc593867e497dd73b11a4669ed425a377bf7698e33c991a0a0922ff5676f57'))
 
-    signature_hmac_key_correct = byteswap(ba.a2b_hex('66ef0c1cbf1491a01e6249000dff641407ded27341b1ef3fd203b1b06474cadd'))
+    signature_hmac_key_correct = byteswap(
+        ba.a2b_hex('66ef0c1cbf1491a01e6249000dff641407ded27341b1ef3fd203b1b06474cadd'))
 
     ccd7_key_hash_correct = ba.a2b_hex('5c4aad785603dc702da3a87aee8017de255743671a5b5b0c56a7de10747e7cc2')
 
@@ -104,7 +167,7 @@ if __name__ == "__main__":
 
     # tests
 
-    keys = get_keys()
+    keys = NvDataKeys.from_file('/Users/cwerling/Git/psp-emulation/asrock/roms/ASRock_A520M_HVS_1.31.ftpm_with_data', None)
     assert keys.wrapping_aes_key == wrapping_aes_key_correct
     assert keys.wrapping_hmac_key == wrapping_hmac_key_correct
     assert keys.signature_hmac_key == signature_hmac_key_correct
@@ -116,9 +179,3 @@ if __name__ == "__main__":
 
     assert keys.hmac_i_key == hmac_ikey_correct
     assert keys.hmac_key == hmac_key_correct
-
-
-
-
-
-

@@ -22,7 +22,10 @@ class NVData:
     @property
     def keys(self):
         if not self._keys:
-            self._keys = crypto.get_keys()
+            self._keys = crypto.NvDataKeys.from_file(
+                '/Users/cwerling/Git/psp-emulation/asrock/roms/ASRock_A520M_HVS_1.31.ftpm_with_data',
+                None
+            )
         return self._keys
 
     @property
