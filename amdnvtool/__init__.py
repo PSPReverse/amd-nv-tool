@@ -1,6 +1,7 @@
 import sys
 from . import raw, crypto, parsed
 
+
 class NVData:
 
     def __init__(self, raw):
@@ -38,7 +39,7 @@ class NVData:
 
     @property
     def are_hmacs_valid(self):
-        return self.raw.verify_all_hmays(self.keys.hmac_key)
+        return self.raw.verify_all_hmacs(self.keys.hmac_key)
 
     def print_parsed(self):
         for (nvdata_num, nvdata) in enumerate(self.parsed):
@@ -53,12 +54,3 @@ class NVData:
             print(f'Context {context_id:x}')
             for content in sequence:
                 print(f'  {content}')
-
-def main():
-    try:
-        nv_data = NVData.from_file(sys.argv[1])
-    except IndexError:
-        nv_data = NVData.from_stdin()
-    #nv_data.print_parsed()
-    nv_data.print_by_context()
-

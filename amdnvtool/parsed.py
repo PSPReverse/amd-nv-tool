@@ -8,7 +8,7 @@ class HexInt(int):
 
 class HexBytes(bytes):
     def __repr__(self):
-        return f'x\'{hexlify(self).decode()}\''
+        return f'0x{hex(len(self))}x\'{hexlify(self).decode()}\''
 
     def try_interpret(self):
         #s = self.decode('ascii', errors='backslashreplace')
@@ -20,7 +20,7 @@ class HexBytes(bytes):
         #res += f'i (le): {ile}\n'
         #res += f'i (be): {ibe}'
         return res
-        
+
 
 @dataclass
 class Entry:
