@@ -1,10 +1,14 @@
+from typing import TypeVar
+
 from cryptography.hazmat.primitives import hashes, hmac, ciphers
 from psptool import PSPTool
 
 import binascii as ba
 
+T = TypeVar('T')
 
-def sole(set_of_one: set, assert_msg="Set does not contain exactly one element"):
+
+def sole(set_of_one: set[T], assert_msg="Set does not contain exactly one element") -> T:
     assert len(set_of_one) == 1, assert_msg
     return list(set_of_one)[0]
 
@@ -80,7 +84,7 @@ class NvDataKeys(SecretKeys):
             sealed_secrets.add(
                 de.get_bytes(offset, sealed_secret_size)
             )
-        sealed_secret: bytes = sole(sealed_secrets)
+        sealed_secret = sole(sealed_secrets)
         secret = unseal_secret(sealed_secret, lsb_zero_key)
 
         # 2. ftpm_key_modulus
@@ -102,7 +106,7 @@ class NvDataKeys(SecretKeys):
             ftpm_app_ids.add(
                 pbtt.get_bytes(offset, 0x10)
             )
-        ftpm_app_id: bytes = sole(ftpm_app_ids)
+        ftpm_app_id = sole(ftpm_app_ids)
 
         return NvDataKeys(secret, ftpm_key_modulus, ftpm_app_id)
 
@@ -117,35 +121,6 @@ class NvDataKeys(SecretKeys):
 
         self.aes_key = hmac_sha256(self.aes_i_key, self.ftpm_app_id)[:16]
         self.hmac_key = hmac_sha256(self.hmac_i_key, self.ftpm_app_id)
-
-
-def get_keys():
-    # inputs
-    # secret = ba.a2b_hex('982f8a4291443771cffbc0b5a5dbb5e95bc25639f111f159a4823f92d55e1cab')
-    secret = ba.a2b_hex('89c209ab1571b23c84b9fef0a1416fbc9482b014cc5fe242a797b72df028556f')
-
-    ftpm_app_id = ba.a2b_hex('00b5a2ab4538ca45bb56f2e5ae71c585')
-
-    ccd7_key_modulus = ba.a2b_hex(
-        'e9451471a33663ade48d5d8a4fe587f9'
-        + 'c6687c89c83a3b8c6d892e610cf5032c'
-        + '2d9377d5c5639eb820cf1ca5d39aedcb'
-        + 'aaa3b8313412ecc84699581808090b60'
-        + '68333d318f56d0271e13696c7ec0d4fe'
-        + '902e7832125ff1004961a900581c6189'
-        + '5ac8a52ef05278777ffaec5df49ce88c'
-        + '7b6bcec897a9ef780d512cd2b490fb55'
-        + '9cef174e98ad83bb2ad755af371df768'
-        + '6e058977268d6dbd0f1fbe24d48d057a'
-        + '9649202ef73eb02005edaa72d267cb99'
-        + '6a26416e37a70225ddb22593dc7fcb2a'
-        + '397ae843cb41ec3f7eaebe32fda6fddc'
-        + 'cf455ca5134b192ef5e03a8ca63b8b66'
-        + '8a9c87e213654691f5be6ea27f89eae0'
-        + 'c2871f6c66efc46b979700e1488c39e6'
-    )
-
-    return NvDataKeys(secret, ccd7_key_modulus, ftpm_app_id)
 
 
 if __name__ == "__main__":
@@ -167,7 +142,9 @@ if __name__ == "__main__":
 
     # tests
 
-    keys = NvDataKeys.from_file('/Users/cwerling/Git/psp-emulation/asrock/roms/ASRock_A520M_HVS_1.31.ftpm_with_data', None)
+    keys = NvDataKeys.from_file(
+        '/Users/cwerling/Git/psp-emulation/asrock/roms/ASRock_A520M_HVS_1.31.ftpm_with_data', None
+    )
     assert keys.wrapping_aes_key == wrapping_aes_key_correct
     assert keys.wrapping_hmac_key == wrapping_hmac_key_correct
     assert keys.signature_hmac_key == signature_hmac_key_correct

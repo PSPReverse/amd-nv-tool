@@ -4,10 +4,8 @@ from .nv_data import NVData
 
 
 def main():
-    try:
-        nv_data = NVData.from_file(sys.argv[1])
-    except IndexError:
-        nv_data = NVData.from_stdin()
+    nv_data = NVData.from_file(sys.argv[1], None)
+
     #nv_data.print_parsed()
     nv_data.print_by_context()
 

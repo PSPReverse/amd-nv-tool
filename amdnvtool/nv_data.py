@@ -1,32 +1,24 @@
-import sys
+from psptool import PSPTool
+
+from .crypto import NvDataKeys, sole
 from . import raw, crypto, parsed
 
 
 class NVData:
 
-    def __init__(self, raw):
+    def __init__(self, raw, nv_data_keys: NvDataKeys):
         self.raw = raw
-        self._keys = None
+        self.keys = nv_data_keys
         self._parsed = None
         self._by_context = None
 
     @staticmethod
-    def from_file(filename: str):
-        with open(filename, 'rb') as f:
-            return NVData(raw.NVRom(f.read()))
+    def from_file(filename: str, lsb_zero_key):
+        pt = PSPTool.from_file(filename)
+        psp_nv_data_entry = sole(set(pt.blob.get_entries_by_type(0x4)))
+        nv_data_keys = NvDataKeys.from_file(filename, lsb_zero_key)
 
-    @staticmethod
-    def from_stdin():
-        return NVData(raw.NVRom(sys.stdin.buffer.read()))
-
-    @property
-    def keys(self):
-        if not self._keys:
-            self._keys = crypto.NvDataKeys.from_file(
-                '/Users/cwerling/Git/psp-emulation/asrock/roms/ASRock_A520M_HVS_1.31.ftpm_with_data',
-                None
-            )
-        return self._keys
+        return NVData(raw.NVRom(psp_nv_data_entry.get_bytes()), nv_data_keys)
 
     @property
     def parsed(self):
