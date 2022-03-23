@@ -1,4 +1,4 @@
-from typing import TypeVar
+from typing import TypeVar, Set
 
 from cryptography.hazmat.primitives import hashes, hmac, ciphers
 from psptool import PSPTool
@@ -8,7 +8,7 @@ import binascii as ba
 T = TypeVar('T')
 
 
-def sole(set_of_one: set[T], assert_msg="Set does not contain exactly one element") -> T:
+def sole(set_of_one: Set[T], assert_msg="Set does not contain exactly one element") -> T:
     assert len(set_of_one) == 1, assert_msg
     return list(set_of_one)[0]
 
