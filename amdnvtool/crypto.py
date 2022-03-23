@@ -61,14 +61,14 @@ class SecretKeys:
         self.signature_hmac_key = kdf(secret, 'HMAC Signature Key for PSP Data saved in DRAM')
 
 
-def unseal_secret(sealed_secret, lsb_zero_key):
-    # todo: implement
-    return ba.a2b_hex('89c209ab1571b23c84b9fef0a1416fbc9482b014cc5fe242a797b72df028556f')
+def unseal_secret(sealed_secret: bytes, lsb_key: bytes):
+    ctx = ciphers.Cipher(ciphers.algorithms.AES(lsb_key), ciphers.modes.ECB()).encryptor()
+    return ctx.update(sealed_secret) + ctx.finalize()
 
 
 class NvDataKeys(SecretKeys):
     @staticmethod
-    def from_file(filename: str, lsb_zero_key: bytes):
+    def from_file_and_hex(filename: str, lsb_key_hex: str):
         pt = PSPTool.from_file(filename)
 
         # For all portions of the NvDataKeys let's fetch all possible inputs and assert they are the same using sole()
@@ -85,7 +85,8 @@ class NvDataKeys(SecretKeys):
                 de.get_bytes(offset, sealed_secret_size)
             )
         sealed_secret = sole(sealed_secrets)
-        secret = unseal_secret(sealed_secret, lsb_zero_key)
+        lsb_key = ba.unhexlify(lsb_key_hex)
+        secret = unseal_secret(sealed_secret, lsb_key)
 
         # 2. ftpm_key_modulus
         ftpm_key_moduli = set()
@@ -142,8 +143,9 @@ if __name__ == "__main__":
 
     # tests
 
-    keys = NvDataKeys.from_file(
-        '/Users/cwerling/Git/psp-emulation/asrock/roms/ASRock_A520M_HVS_1.31.ftpm_with_data', None
+    keys = NvDataKeys.from_file_and_hex(
+        '/Users/cwerling/Git/psp-emulation/asrock/roms/ASRock_A520M_HVS_1.31.ftpm_with_data',
+        'fb2aaa2268624d6b0cfb1f8b69f936e84377b0f8169668dc0453484a33f81544'
     )
     assert keys.wrapping_aes_key == wrapping_aes_key_correct
     assert keys.wrapping_hmac_key == wrapping_hmac_key_correct
