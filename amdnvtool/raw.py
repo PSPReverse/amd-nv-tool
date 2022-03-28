@@ -138,7 +138,7 @@ class EntryHeader(NamedBytes):
 
         assert self.has_checksum.value in {0,1}
 
-        assert self.reserved_1.bytes == b'\0'*4
+        #assert self.reserved_1.bytes == b'\0'*4
         assert self.reserved_2.bytes == b'\0'*8
 
         assert self.unknown_1.value == 2
@@ -319,6 +319,11 @@ class NVEntrySequence(NamedBytes):
     def verify_all_hmacs(self, key) -> bool:
         return all(e.verify_hmac(key) for e in self.entries)
 
+    def assert_hmac_is_valid(self, key):
+        for e in self.entries:
+            if not e.verify_hmac(key):
+                raise Exception(e, "is not valid!")
+
     def to_parsed(self, key) -> List[parsed.Entry]:
         return [entry.to_parsed(key) for entry in self.entries]
 
@@ -363,6 +368,18 @@ class NVData(NamedBytes):
 
         return all(s.verify_all_hmacs(key) for s in self.entry_seqs)
 
+
+    def assert_all_hmacs_are_valid(self, key):
+        for s in self.entry_seqs:
+            s.assert_hmac_is_valid(key)
+
+        buffer_len = len(self.header)
+        for entry_seq in self.entry_seqs:
+            buffer_len += len(entry_seq)
+            checksum = crypto.hmac_sha256(key, self.bytes[:buffer_len-0x20])
+            if checksum != entry_seq.hmac.bytes:
+                raise Exception("Sequence hmac up until {buffer_len} is invalid!")
+
     def to_parsed(self, key) -> List[List[parsed.Entry]]:
         return [seq.to_parsed(key) for seq in self.entry_seqs]
 
@@ -390,6 +407,10 @@ class NVRom(NamedBytes):
 
     def verify_all_hmacs(self, key) -> bool:
         return all(d.verify_all_hmacs(key) for d in self.nvdatas)
+
+    def assert_all_hmacs_are_valid(self, key) -> bool:
+        for d in self.nvdatas:
+            d.assert_all_hmacs_are_valid(key)
 
     def to_parsed(self, key) -> List[List[List[parsed.Entry]]]:
         return [nvdata.to_parsed(key) for nvdata in self.nvdatas]
