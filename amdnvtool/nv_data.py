@@ -1,5 +1,7 @@
 from psptool import PSPTool
 
+import json, base64
+
 from .crypto import NvDataKeys, sole
 from . import raw, crypto, parsed
 
@@ -57,3 +59,17 @@ class NVData:
             print(f'Context {context_id:x}')
             for content in sequence:
                 print(f'  {content}')
+
+    def print_json_by_context(self):
+        json_obj = [{
+            'context': context_id,
+            'sequence': [content for content in sequence]
+        } for (context_id, sequence) in self.by_context.items()]
+        print(json.dumps(json_obj, sort_keys=True, indent=4, cls=Base64Encoder))
+
+
+class Base64Encoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, bytes):
+            return base64.b64encode(obj).decode('utf-8')
+        return json.JSONEncoder.default(self, obj)

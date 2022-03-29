@@ -2,9 +2,11 @@ from dataclasses import dataclass, field
 from typing import List, Dict
 from binascii import hexlify
 
+
 class HexInt(int):
     def __repr__(self):
         return hex(self)
+
 
 class HexBytes(bytes):
     def __repr__(self):

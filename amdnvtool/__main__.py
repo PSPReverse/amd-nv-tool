@@ -20,7 +20,8 @@ def main():
     nv_data.raw.assert_all_hmacs_are_valid(nv_data.keys.hmac_key)
 
     #nv_data.print_parsed()
-    nv_data.print_by_context()
+    #nv_data.print_by_context()
+    nv_data.print_json_by_context()
 
 
 if __name__ == '__main__':
