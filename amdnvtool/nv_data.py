@@ -71,5 +71,7 @@ class NVData:
 class Base64Encoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, bytes):
-            return base64.b64encode(obj).decode('utf-8')
+            return {
+                '__base64__': base64.b64encode(obj).decode('utf-8')
+            }
         return json.JSONEncoder.default(self, obj)
