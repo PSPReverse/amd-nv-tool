@@ -6,6 +6,24 @@ from .crypto import NvDataKeys, sole
 from . import raw, crypto, parsed
 
 
+# Custom JSON encoder for binary data
+class Base64Encoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, bytes):
+            return {
+                '__base64__': base64.b64encode(obj).decode('utf-8')
+            }
+        return json.JSONEncoder.default(self, obj)
+
+
+# Respective decoder for binary data
+# usage: json.loads(serialized_bytes, object_hook=as_base64)
+def as_base64(dct):
+    if '__base64__' in dct:
+        return base64.b64decode(dct['__base64__'])
+    return dct
+
+
 class NVData:
 
     def __init__(self, raw, nv_data_keys: NvDataKeys):
@@ -66,12 +84,3 @@ class NVData:
             'sequence': [content for content in sequence]
         } for (context_id, sequence) in self.by_context.items()]
         print(json.dumps(json_obj, sort_keys=True, indent=4, cls=Base64Encoder))
-
-
-class Base64Encoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, bytes):
-            return {
-                '__base64__': base64.b64encode(obj).decode('utf-8')
-            }
-        return json.JSONEncoder.default(self, obj)
