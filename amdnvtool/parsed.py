@@ -10,7 +10,8 @@ class HexInt(int):
 
 class HexBytes(bytes):
     def __repr__(self):
-        return f'0x{hex(len(self))}x\'{hexlify(self).decode()}\''
+        # return f'len={hex(len(self))}, hexbytes=\'{hexlify(self).decode()}\''
+        return hexlify(self).decode()
 
     def try_interpret(self):
         #s = self.decode('ascii', errors='backslashreplace')

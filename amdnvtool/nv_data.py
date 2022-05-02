@@ -16,6 +16,12 @@ class Base64Encoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
+class HexByteEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, parsed.HexBytes):
+            return repr(obj)
+        return json.JSONEncoder.default(self, obj)
+
 # Respective decoder for binary data
 # usage: json.loads(serialized_bytes, object_hook=as_base64)
 def as_base64(dct):
@@ -83,4 +89,5 @@ class NVData:
             'context': context_id,
             'sequence': [content for content in sequence]
         } for (context_id, sequence) in self.by_context.items()]
-        print(json.dumps(json_obj, sort_keys=True, indent=4, cls=Base64Encoder))
+        print(json.dumps(json_obj, sort_keys=True, indent=4, cls=HexByteEncoder))
+        # print(json.dumps(json_obj, sort_keys=True, indent=4, cls=Base64Encoder))
