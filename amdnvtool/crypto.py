@@ -89,7 +89,6 @@ class NvDataKeys(SecretKeys):
 
         return NvDataKeys._from_file_and_secret(pt, filename, secret)
 
-
     @staticmethod
     def from_file_and_secret_hex(filename: str, secret_hex: str):
         pt = PSPTool.from_file(filename)
@@ -104,22 +103,24 @@ class NvDataKeys(SecretKeys):
         # 2. ftpm_key_modulus
         ftpm_key_moduli = set()
         for pbtt in psp_boot_time_trustlets:
-            assert len(pbtt.signed_entity.certifying_keys) >= 1
-            ck = list(pbtt.signed_entity.certifying_keys)[0]
-            pk = ck.get_public_key()
-            ftpm_key_moduli.add(
-                pk.get_crypto_material(pk.signature_size)
-            )
+            if pbtt.signed_entity:  # Zen 1 PBTTS are legacy_headers that cannot be verified by PSPTol (yet!)
+                assert len(pbtt.signed_entity.certifying_keys) >= 1
+                ck = list(pbtt.signed_entity.certifying_keys)[0]
+                pk = ck.get_public_key()
+                ftpm_key_moduli.add(
+                    pk.get_crypto_material(pk.signature_size)
+                )
         ftpm_key_modulus: bytes = sole(ftpm_key_moduli)
 
         # 3. ftpm_app_id
         ftpm_app_ids = set()
         for pbtt in psp_boot_time_trustlets:
-            magic = b"gpd.ta.appID"
-            offset = pbtt.get_bytes().find(magic) + len(magic) + 1
-            ftpm_app_ids.add(
-                pbtt.get_bytes(offset, 0x10)
-            )
+            if pbtt.signed_entity:  # Zen 1 PBTTS are legacy_headers that cannot be verified by PSPTol (yet!)
+                magic = b"gpd.ta.appID"
+                offset = pbtt.get_bytes().find(magic) + len(magic) + 1
+                ftpm_app_ids.add(
+                    pbtt.get_bytes(offset, 0x10)
+                )
         ftpm_app_id = sole(ftpm_app_ids)
 
         return NvDataKeys(secret, ftpm_key_modulus, ftpm_app_id)
