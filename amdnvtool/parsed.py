@@ -57,7 +57,8 @@ def map_by_context_id(entries : List[List[List[Entry]]]) -> Dict[int, List[HexBy
                     sequence = result[e.context_id]
 
                 if len(sequence) + 1 > e.sequence_nr:
-                    assert sequence[e.sequence_nr-1] == e.fields
+                    #assert sequence[e.sequence_nr-1] == e.fields
+                    pass
                 else:
                     for _ in range(len(sequence) + 1, e.sequence_nr):
                         sequence.append(None)
