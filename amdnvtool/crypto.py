@@ -79,10 +79,9 @@ class NvDataKeys(SecretKeys):
         for de in driver_entries:
             # We suspect the sealed_secret right before this string
             sealed_secret_size = 0x20
-            offset = de.get_bytes().find(b"HMAC Signature Key for PSP Data saved in DRAM") - sealed_secret_size
-            sealed_secrets.add(
-                de.get_bytes(offset, sealed_secret_size)
-            )
+            body = de.get_decrypted_decompressed_body()
+            offset = body.find(b"HMAC Signature Key for PSP Data saved in DRAM") - sealed_secret_size
+            sealed_secrets.add(body[offset:offset+sealed_secret_size])
         sealed_secret = sole(sealed_secrets)
         lsb_key = ba.unhexlify(lsb_key_hex)
         secret = unseal_secret(sealed_secret, lsb_key)
@@ -117,9 +116,9 @@ class NvDataKeys(SecretKeys):
         for pbtt in psp_boot_time_trustlets:
             if pbtt.signed_entity:  # Zen 1 PBTTS are legacy_headers that cannot be verified by PSPTol (yet!)
                 magic = b"gpd.ta.appID"
-                offset = pbtt.get_bytes().find(magic) + len(magic) + 1
+                offset = pbtt.get_decrypted_decompressed_body().find(magic) + len(magic) + 1
                 ftpm_app_ids.add(
-                    pbtt.get_bytes(offset, 0x10)
+                    pbtt.get_decrypted_decompressed_body()[offset:offset+0x10]
                 )
         ftpm_app_id = sole(ftpm_app_ids)
 

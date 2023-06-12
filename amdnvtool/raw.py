@@ -101,7 +101,7 @@ class Header(NamedBytes):
         self.version = NamedLittleInt("version", buf[4:8])
         self.reserved = NamedBytes("reserved", buf[8:])
 
-        assert self.magic.value == 'NVx3'
+        assert self.magic.value in ['NVx3', 'NVx2']
         #assert self.version.value == 1
         assert self.reserved.bytes == b'\xff' * 0x38
 
