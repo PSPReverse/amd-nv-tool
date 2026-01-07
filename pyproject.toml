@@ -1,0 +1,23 @@
+[project]
+name = "amdnvtool"
+version = "0.1"
+authors = [{name = "Christian Werling", email = "cwerling@posteo.de"}, {name = "Niklas Jacob", email = "hnj@posteo.de"}]
+description = "amdnvtool can extract and modify information from BIOS images of AMD systems"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Security",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Programming Language :: Python :: 3.8",
+]
+dependencies = [
+    "cryptography",
+    "psptool>=3.3",
+]
+
+[project.urls]
+Homepage = "https://github.com/PSPReverse/amd-nv-tool"
+
+[tool.setuptools]
+packages = ["amdnvtool"]
+include-package-data = false
