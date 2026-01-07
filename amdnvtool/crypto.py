@@ -72,7 +72,7 @@ class NvDataKeys(SecretKeys):
         pt = PSPTool.from_file(filename)
 
         # For all portions of the NvDataKeys let's fetch all possible inputs and assert they are the same using sole()
-        driver_entries = pt.blob.get_entries_by_type(0x28)
+        driver_entries = pt.blob.get_files_by_type(0x28)
 
         # 1. sealed_secret:
         sealed_secrets = set()
@@ -97,7 +97,7 @@ class NvDataKeys(SecretKeys):
     @staticmethod
     def _from_file_and_secret(pt, filename: str, secret: bytes):
 
-        psp_boot_time_trustlets = pt.blob.get_entries_by_type(0xc)
+        psp_boot_time_trustlets = pt.blob.get_files_by_type(0xc)
 
         # 2. ftpm_key_modulus
         ftpm_key_moduli = set()

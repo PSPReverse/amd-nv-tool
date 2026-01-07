@@ -41,7 +41,7 @@ class NVData:
     @staticmethod
     def from_file_and_lsb_key_hex(filename: str, lsb_key_hex: str):
         pt = PSPTool.from_file(filename)
-        psp_nv_data_entry = sole(set(pt.blob.get_entries_by_type(0x4)))
+        psp_nv_data_entry = sole(set(pt.blob.get_files_by_type(0x4)))
 
         nv_data_keys = NvDataKeys.from_file_and_lsb_key_hex(filename, lsb_key_hex)
         return NVData(raw.NVRom(psp_nv_data_entry.get_bytes()), nv_data_keys)
@@ -49,7 +49,7 @@ class NVData:
     @staticmethod
     def from_file_and_secret_hex(filename: str, secret_hex: str):
         pt = PSPTool.from_file(filename)
-        psp_nv_data_entry = sole(set(pt.blob.get_entries_by_type(0x4)))
+        psp_nv_data_entry = sole(set(pt.blob.get_files_by_type(0x4)))
 
         nv_data_keys = NvDataKeys.from_file_and_secret_hex(filename, secret_hex)
         return NVData(raw.NVRom(psp_nv_data_entry.get_bytes()), nv_data_keys)
